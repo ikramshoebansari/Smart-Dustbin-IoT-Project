@@ -1,0 +1,141 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+Servo servoMotor;
+
+// Define the pins for the IR sensors
+const int irSensorPin1 = D3;
+const int irSensorPin2 = D4;
+const int irSensorPin3 = D5;
+
+// Define the pin for the soil moisture sensor
+const int soilMoisturePin = A0;
+const int servoPin = D6;
+
+// Define the pins for the ultrasonic sensors
+const int trigPin1 = D7;
+const int echoPin1 = D8;
+const int trigPin2 = 1; // Change to GPIO 9
+const int echoPin2 = 3; // Change to GPIO 10
+
+// Define the pin for the buzzer
+const int buzzerPin = D0;
+
+// Store the original position of the servo
+const int originalPosition = 90;
+
+void setup() {
+  Serial.begin(9600);
+  lcd.init();
+  lcd.backlight();
+  
+  pinMode(irSensorPin1, INPUT);
+  pinMode(irSensorPin2, INPUT);
+  pinMode(irSensorPin3, INPUT);
+  
+  servoMotor.attach(servoPin);
+
+  pinMode(trigPin1, OUTPUT);
+  pinMode(echoPin1, INPUT);
+  pinMode(trigPin2, OUTPUT); // For the second ultrasonic sensor
+  pinMode(echoPin2, INPUT); // For the second ultrasonic sensor
+  
+  pinMode(buzzerPin, OUTPUT);
+  
+  // Move the servo to the original position
+  servoMotor.write(originalPosition);
+}
+
+void loop() {
+  // Check if any of the IR sensors detect an object
+  if (digitalRead(irSensorPin1) == LOW || 
+      digitalRead(irSensorPin2) == LOW || 
+      digitalRead(irSensorPin3) == LOW) {
+    int soilMoisture = analogRead(soilMoisturePin);
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Object detected!");
+    Serial.println("Object detected!");
+    delay(1000);
+    
+    if (soilMoisture < 700) {
+      lcd.setCursor(0, 1);
+      lcd.print("Wet");
+      Serial.print("  ");
+      Serial.print(soilMoisture);
+      Serial.print("  ");
+      Serial.println("Wet");
+      rotateServo(originalPosition+90);
+      delay(1500);
+      rotateServo(originalPosition); // Rotate servo back to original position
+    } else {
+      lcd.setCursor(0, 1);
+      lcd.print("Dry");
+      Serial.print("  ");
+      Serial.print(soilMoisture);
+      Serial.print("  ");
+      Serial.println("Dry");
+      rotateServo(originalPosition-90);
+      delay(1500);
+      rotateServo(originalPosition); // Rotate servo 90 degrees CW
+    }
+  } else {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("No object detected");
+    Serial.println("No object detected");
+  }
+  
+  // Check distance measured by first ultrasonic sensor
+  int distance1 = measureDistance(trigPin1, echoPin1);
+  if (distance1 < 3) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("FULL");
+    Serial.println("FULL");
+    tone(buzzerPin, 1000); // Sound the buzzer
+    delay(1000); // Delay for sound
+    noTone(buzzerPin); // Stop the buzzer
+  }
+  
+  // Check distance measured by second ultrasonic sensor
+  int distance2 = measureDistance(trigPin2, echoPin2);
+  if (distance2 < 3) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("FULL");
+    Serial.println("FULL");
+    tone(buzzerPin, 1000); // Sound the buzzer
+    delay(1000); // Delay for sound
+    noTone(buzzerPin); // Stop the buzzer
+  }
+  
+  delay(100);
+}
+
+// Function to measure distance using ultrasonic sensor
+int measureDistance(int trigPin, int echoPin) {
+  // Clear the trigger pin
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+
+  // Set trigger pin high for 10 microseconds
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Measure the duration of pulse from echo pin
+  long duration = pulseIn(echoPin, HIGH);
+
+  // Calculate distance in centimeters
+  int distance = duration * 0.034 / 2;
+
+  return distance;
+}
+
+void rotateServo(int angle) {
+  servoMotor.write(angle);
+}
